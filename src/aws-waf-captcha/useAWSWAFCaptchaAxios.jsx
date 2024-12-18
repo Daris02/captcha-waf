@@ -11,6 +11,9 @@ export function useAWSWAFCaptchaAxios(
     document.body.style.cursor = "wait";
     document.getElementById("modalOverlay").style.display = "block";
     document.getElementById("modal").style.display = "block";
+    
+    console.log(document.getElementById("modalOverlay"));
+    console.log(document.getElementById("modal"));
 
     return new Promise((resolve) => {
       onCaptchaEvent("onCaptchaRequired");
