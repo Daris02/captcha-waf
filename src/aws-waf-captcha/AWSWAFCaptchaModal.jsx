@@ -3,7 +3,7 @@ import { loadScript } from "../util";
 import { useEffect } from "react";
 
 export function AWSWAFCaptchaModal() {
-  useEffect(() => loadScript());
+  // useEffect(() => loadScript());
 
   return createPortal(
     <div className="overlay" id="modalOverlay">

@@ -1,11 +1,42 @@
-import { getWAFEnv } from "../util";
-import axiosInstance from "./axiosInstances";
+import axios from "axios";
 
 export function useAWSWAFCaptchaAxios(
   onCaptchaEvent = (event) => console.log(event)
 ) {
 
-  const captchaAxios = axiosInstance;
+  // const captchaAxios = axiosInstance;
+  const captchaAxios = axios.create();
+
+  const captchaRequired = (error) =>
+    error.response?.status === 405 &&
+    error.response?.headers["x-amzn-waf-action"] === "captcha";
+
+  // Use an Axios interceptor to render the CAPTCHA if the WAF requires it
+  captchaAxios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (captchaRequired(error)) {
+        return renderCaptcha().then((token) => {
+          // add the header x-aws-waf-token: token if doing cross domain requests
+          // Retry the request with the token added
+          return captchaAxios.request(error.config);
+        });
+      } else return Promise.reject(error);
+    }
+  );
+
+  // Ensure a token exists before making the request
+  captchaAxios.interceptors.request.use(
+    (config) => {
+      
+      return window.AwsWafIntegration?.getToken().then((token) => {
+        // add the header x-aws-waf-token: token if doing cross domain requests
+        config.headers["x-aws-waf-token"] = token;
+        return config;
+      });
+    },
+    (_) => Promise.reject(_)
+  );
 
   function renderCaptcha() {
     document.body.style.cursor = "wait";
@@ -35,39 +66,11 @@ export function useAWSWAFCaptchaAxios(
           onPuzzleIncorrect: () => onCaptchaEvent("onPuzzleIncorrect"),
           onPuzzleCorrect: () => onCaptchaEvent("onPuzzleCorrect"),
 
-          apiKey: getWAFEnv().CAPTCHA_API_KEY,
+          apiKey: import.meta.env.VITE_CAPTCHA_API_KEY,
         }
       );
     });
   }
-
-  const captchaRequired = (error) =>
-    error.response?.status === 405 &&
-    error.response?.headers["x-amzn-waf-action"] === "captcha";
-
-  // Use an Axios interceptor to render the CAPTCHA if the WAF requires it
-  captchaAxios.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (captchaRequired(error)) {
-        return renderCaptcha().then((token) => {
-          // add the header x-aws-waf-token: token if doing cross domain requests
-          return captchaAxios.request(error.config);
-        });
-      } else return Promise.reject(error);
-    }
-  );
-
-  // Ensure a token exists before making the request
-  captchaAxios.interceptors.request.use(
-    (config) => {
-      return window.AwsWafIntegration?.getToken().then((token) => {
-        // add the header x-aws-waf-token: token if doing cross domain requests
-        return config;
-      });
-    },
-    (_) => Promise.reject(_)
-  );
 
   return captchaAxios;
 }
